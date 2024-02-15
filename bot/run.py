@@ -64,22 +64,25 @@ async def command_start_handler(message: Message) -> None:
 @dp.message(Command("reset"))
 async def command_reset_handler(message: Message) -> None:
     if message.from_user.id in allowed_ids:
-        if message.from_user.id in ACTIVE_CHATS:
-            async with ACTIVE_CHATS_LOCK:
-                ACTIVE_CHATS.pop(message.from_user.id)
-            logging.info(f"Chat has been reset for {message.from_user.first_name}")
-            await bot.send_message(
-                chat_id=message.chat.id,
-                text="Chat has been reset",
-            )
-        #if message.group.id in ACTIVE_CHATS:
-        #    async with ACTIVE_CHATS_LOCK:
-        #        ACTIVE_CHATS.pop(message.group.id)
-        #    logging.info(f"Chat has been reset for {message.group.name}")
-        #    await bot.send_message(
-        #        chat_id=message.chat.id,
-        #        text="The Group Chat has been reset",
-        #    )
+        if is_mentioned_in_group_or_supergroup(message):
+            if message.chat.id in ACTIVE_CHATS:
+                async with ACTIVE_CHATS_LOCK:
+                    ACTIVE_CHATS.pop(message.chat.id)
+                logging.info(f"Chat has been reset for {message.group.title}")
+                await bot.send_message(
+                    chat_id=message.chat.id,
+                    text="The Group Chat has been reset",
+                )
+        else:
+            if message.from_user.id in ACTIVE_CHATS:
+                async with ACTIVE_CHATS_LOCK:
+                    ACTIVE_CHATS.pop(message.from_user.id)
+                logging.info(f"Chat has been reset for {message.from_user.first_name}")
+                await bot.send_message(
+                    chat_id=message.chat.id,
+                    text="Chat has been reset",
+                )
+       
 
 
 # /history command | Displays dialogs between LLM and USER
@@ -150,7 +153,7 @@ async def handle_message(message: types.Message):
     if message.chat.type == "private":
         await ollama_request(message)
     if is_mentioned_in_group_or_supergroup(message):
-        logging.info(f"Looking for the group ID: {message}")
+        #logging.info(f"Looking for the group ID: {message}")
         # Remove the mention from the message
         text_without_mention = message.text.replace(mention, "").strip()
         # Pass the modified text and bot instance to ollama_request
@@ -182,20 +185,36 @@ async def ollama_request(message: types.Message):
 
         async with ACTIVE_CHATS_LOCK:
             # Add prompt to active chats object
-            if ACTIVE_CHATS.get(message.from_user.id) is None:
-                ACTIVE_CHATS[message.from_user.id] = {
-                    "model": modelname,
-                    "messages": [{"role": "user", "content": prompt, "images": [image_base64]}],
-                    "stream": True,
-                }
-            else:
-                ACTIVE_CHATS[message.from_user.id]["messages"].append(
-                    {"role": "user", "content": prompt, "images": [image_base64]}
+            if (message.chat.type in [CHAT_TYPE_GROUP, CHAT_TYPE_SUPERGROUP]):
+                if ACTIVE_CHATS.get(message.chat.id) is None:
+                    ACTIVE_CHATS[message.chat.id] = {
+                        "model": modelname,
+                        "messages": [{"role": "user", "content": prompt, "images": [image_base64]}],
+                        "stream": True,
+                    }
+                else:
+                    ACTIVE_CHATS[message.chat.id]["messages"].append(
+                        {"role": "user", "content": prompt, "images": [image_base64]}
                 )
-        logging.info(
-            f"[Request]: Processing '{prompt}' for {message.from_user.first_name} {message.from_user.last_name}"
-        )
-        payload = ACTIVE_CHATS.get(message.from_user.id)
+                logging.info(
+                    f"[Request]: Processing '{prompt}' for {message.chat.title}"
+                )
+                payload = ACTIVE_CHATS.get(message.chat.id)
+            else:
+                if ACTIVE_CHATS.get(message.from_user.id) is None:
+                    ACTIVE_CHATS[message.from_user.id] = {
+                        "model": modelname,
+                        "messages": [{"role": "user", "content": prompt, "images": [image_base64]}],
+                        "stream": True,
+                    }
+                else:
+                    ACTIVE_CHATS[message.from_user.id]["messages"].append(
+                        {"role": "user", "content": prompt, "images": [image_base64]}
+                )
+                logging.info(
+                    f"[Request]: Processing '{prompt}' for {message.from_user.first_name} {message.from_user.last_name}"
+                )
+                payload = ACTIVE_CHATS.get(message.from_user.id)
         async for response_data in generate(payload, modelname, prompt):
             msg = response_data.get("message")
             if msg is None:
@@ -244,18 +263,33 @@ async def ollama_request(message: types.Message):
                 #)
 
                 async with ACTIVE_CHATS_LOCK:
-                    if ACTIVE_CHATS.get(message.from_user.id) is not None:
-                        # Add response to active chats object
-                        ACTIVE_CHATS[message.from_user.id]["messages"].append(
-                            {"role": "assistant", "content": full_response_stripped}
-                        )
-                        logging.info(
-                            f"[Response]: '{full_response_stripped}' for {message.from_user.first_name} {message.from_user.last_name}"
-                        )
+                    
+                    if (message.chat.type in [CHAT_TYPE_GROUP, CHAT_TYPE_SUPERGROUP]):
+                        if ACTIVE_CHATS.get(message.chat.id) is not None:
+                            # Add response to active chats object
+                            ACTIVE_CHATS[message.chat.id]["messages"].append(
+                                {"role": "assistant", "content": full_response_stripped}
+                            )
+                            logging.info(
+                                f"[Response]: '{full_response_stripped}' for {message.chat.title}"
+                            )
+                        else:
+                            await bot.send_message(
+                                chat_id=message.chat.id, text="Chat was reset"
+                            )
                     else:
-                        await bot.send_message(
-                            chat_id=message.chat.id, text="Chat was reset"
-                        )
+                        if ACTIVE_CHATS.get(message.from_user.id) is not None:
+                            # Add response to active chats object
+                            ACTIVE_CHATS[message.from_user.id]["messages"].append(
+                                {"role": "assistant", "content": full_response_stripped}
+                            )
+                            logging.info(
+                                f"[Response]: '{full_response_stripped}' for {message.from_user.first_name} {message.from_user.last_name}"
+                            )
+                        else:
+                            await bot.send_message(
+                                chat_id=message.chat.id, text="Chat was reset"
+                            )
 
                 break
     except Exception as e:
