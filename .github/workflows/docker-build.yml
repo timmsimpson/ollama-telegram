@@ -1,6 +1,6 @@
 name: Docker image build
 
-on: [push, release]
+on: [push, release, workflow_dispatch]
 
 jobs:
   docker-build:
