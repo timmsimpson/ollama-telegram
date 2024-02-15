@@ -56,11 +56,11 @@ def perms_allowed(func):
                 return await func(query=query)
         else:
             if message:
-                if message and message.chat.type in ["supergroup", "group"]:
+                if message and message.type in ["supergroup", "group"]:
                     return
                 await message.answer("Access Denied")
             elif query:
-                if message and message.chat.type in ["supergroup", "group"]:
+                if message and message.type in ["supergroup", "group"]:
                     return
                 await query.answer("Access Denied")
 
@@ -70,11 +70,8 @@ def perms_allowed(func):
 def perms_admins(func):
     @wraps(func)
     async def wrapper(message: types.Message = None, query: types.CallbackQuery = None):
-        logging.info(
-            f"[CallbackQuery] {message}"
-        )
-        #if message and message.chat and message.chat.type in ["supergroup", "group"]:
-        #    pass
+        if message and message.type in ["supergroup", "group"]:
+            pass
         user_id = message.from_user.id if message else query.from_user.id
         if user_id in admin_ids:
             if message:
