@@ -50,7 +50,7 @@ async def get_bot_info():
 # /start command
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
-    start_message = f"Welcome to OllamaTelegram Bot, ***{message.from_user.full_name}***!\nSource code: https://github.com/ruecat/ollama-telegram"
+    start_message = f"Welcome to OllamaTelegram Bot, ***{message.from_user.full_name}***!\nSource code: https://github.com/timmsimpson/ollama-telegram"
     start_message_md = md_autofixer(start_message)
     await message.answer(
         start_message_md,
@@ -72,6 +72,14 @@ async def command_reset_handler(message: Message) -> None:
                 chat_id=message.chat.id,
                 text="Chat has been reset",
             )
+        #if message.group.id in ACTIVE_CHATS:
+        #    async with ACTIVE_CHATS_LOCK:
+        #        ACTIVE_CHATS.pop(message.group.id)
+        #    logging.info(f"Chat has been reset for {message.group.name}")
+        #    await bot.send_message(
+        #        chat_id=message.chat.id,
+        #        text="The Group Chat has been reset",
+        #    )
 
 
 # /history command | Displays dialogs between LLM and USER
@@ -142,6 +150,7 @@ async def handle_message(message: types.Message):
     if message.chat.type == "private":
         await ollama_request(message)
     if is_mentioned_in_group_or_supergroup(message):
+        logging.info(f"Looking for the group ID: {message}")
         # Remove the mention from the message
         text_without_mention = message.text.replace(mention, "").strip()
         # Pass the modified text and bot instance to ollama_request
