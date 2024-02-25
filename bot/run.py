@@ -159,7 +159,7 @@ async def handle_message(message: types.Message):
 async def ollama_request(message: types.Message):
     try:
         await bot.send_chat_action(message.chat.id, "typing")
-        prompt = message.text or message.caption
+        prompt = message.text
         image_base64 = ''
         if message.content_type == 'photo':
             image_buffer = io.BytesIO()
@@ -177,12 +177,12 @@ async def ollama_request(message: types.Message):
             if ACTIVE_CHATS.get(message.chat.id) is None:
                 ACTIVE_CHATS[message.chat.id] = {
                     "model": modelname,
-                    "messages": [{"role": "user", "content": prompt, "images": [image_base64]}],
-                    "stream": True,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
                 }
             else:
                 ACTIVE_CHATS[message.chat.id]["messages"].append(
-                    {"role": "user", "content": prompt, "images": [image_base64]}
+                    {"role": "user", "content": prompt}
             )
             logging.info(
                 f"[Request]: Processing '{prompt}' for {message.chat.title}"
